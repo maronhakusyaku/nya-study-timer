@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="apple-mobile-web-app-title" content="ニャまじめ">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <title>ニャまじめ！</title>
+  <style>
+    *, *::before, *::after {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      height: 100%; height: -webkit-fill-available;
+      font-family: 'Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI',sans-serif;
+      overflow: hidden;
+      user-select: none; -webkit-user-select: none;
+    }
+    #root {
+      height: 100%; height: 100vh;
+      position: relative; overflow: hidden;
+    }
+
+    /* ── animations ── */
+    @keyframes float    { 0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)} }
+    @keyframes bounce   { 0%,100%{transform:translateY(0) scale(1)}40%{transform:translateY(-22px) scale(1.06)}60%{transform:translateY(-10px) scale(1.02)} }
+    @keyframes shakeX   { 0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-8px)}80%{transform:translateX(8px)} }
+    @keyframes pulse    { 0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.85} }
+    @keyframes fadeIn   { from{opacity:0}to{opacity:1} }
+    @keyframes fadeUp   { from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)} }
+    @keyframes starFall { 0%{transform:translateY(-80px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(560deg);opacity:0} }
+    @keyframes ringPulse{ 0%{box-shadow:0 0 0 0 rgba(245,158,11,.7)}70%{box-shadow:0 0 0 18px rgba(245,158,11,0)}100%{box-shadow:0 0 0 0 rgba(245,158,11,0)} }
+
+    /* ── screen ── */
+    .screen {
+      position: absolute; top:0; right:0; bottom:0; left:0;
+      display: -webkit-flex; display: flex;
+      -webkit-flex-direction: column; flex-direction: column;
+      -webkit-align-items: center; align-items: center;
+      -webkit-justify-content: center; justify-content: center;
+      padding: 24px 20px;
+      padding-top: 44px;
+      padding-bottom: 30px;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      -webkit-animation: fadeIn .35s ease-out;
+      animation: fadeIn .35s ease-out;
+    }
+    .bg-home    { background: linear-gradient(160deg,#4f46e5,#7c3aed); }
+    .bg-ready   { background: linear-gradient(160deg,#1e1b4b,#4338ca); }
+    .bg-timer   { background: linear-gradient(160deg,#0f172a 0%,#1e1b4b 60%,#312e81); }
+    .bg-success { background: linear-gradient(160deg,#065f46,#047857 60%,#064e3b); }
+    .bg-fail    { background: linear-gradient(160deg,#4a1d96,#6d28d9); }
+    .bg-goal    { background: linear-gradient(160deg,#78350f,#b45309 40%,#d97706); }
+
+    /* ── bubble ── */
+    .bubble {
+      position: relative; background: #fff;
+      border-radius: 20px; padding: 14px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.18);
+      max-width: 290px; text-align: center;
+      font-size: 14px; color: #333;
+      line-height: 1.75; font-weight: 700;
+      white-space: pre-wrap;
+      animation: fadeUp .4s ease-out;
+    }
+    .bubble::after {
+      content:''; position:absolute; bottom:-13px; left:50%;
+      transform:translateX(-50%);
+      border:8px solid transparent; border-top-color:#fff;
+    }
+
+    /* ── rounds ── */
+    .rounds { display:-webkit-flex; display:flex; margin:14px 0; }
+    .rounds .dot { margin:0 9px; }
+    .dot {
+      width:30px; height:30px; border-radius:50%;
+      border:3px solid rgba(255,255,255,.4);
+      display:flex; align-items:center; justify-content:center;
+      font-size:15px; color:transparent;
+      transition: all .4s;
+    }
+    .dot.done {
+      background:#f59e0b; border-color:#f59e0b;
+      color:#fff; box-shadow:0 0 16px rgba(245,158,11,.6);
+      animation: ringPulse 1.2s ease-out;
+    }
+
+    /* ── cat ── */
+    .cat { display:block; margin:8px auto; }
+    .cat.float    { animation: float 3s ease-in-out infinite; }
+    .cat.bounce   { animation: bounce .65s ease-in-out infinite; }
+    .cat.excited  { animation: bounce .48s ease-in-out infinite; }
+    .cat.sad      { animation: shakeX .6s ease-in-out 2; }
+
+    /* ── timer ── */
+    .timer-num {
+      font-size: 82px; font-weight: 900; color:#fff;
+      letter-spacing:4px; line-height:1;
+      /* font-variant-numeric:tabular-nums; iOS古いバージョン対応のため削除 */
+      text-shadow:0 4px 24px rgba(0,0,0,.4);
+    }
+    .timer-label { font-size:12px; color:rgba(255,255,255,.5); letter-spacing:2.5px; margin-top:6px; }
+
+    /* ── bar ── */
+    .bar-wrap { width:280px; height:8px; background:rgba(255,255,255,.15); border-radius:4px; margin-top:22px; overflow:hidden; }
+    .bar-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,#a78bfa,#f59e0b); transition:width .8s linear; }
+
+    /* ── buttons ── */
+    .btn {
+      display:-webkit-flex; display:inline-flex; -webkit-align-items:center; align-items:center; -webkit-justify-content:center; justify-content:center;
+      padding:15px 44px; border:none; border-radius:50px;
+      font-size:17px; font-weight:900; color:#fff; cursor:pointer;
+      box-shadow:0 5px 22px rgba(0,0,0,.35);
+      font-family:inherit; -webkit-appearance:none;
+      animation: fadeUp .5s ease-out;
+      transition: transform .12s, box-shadow .12s;
+    }
+    .btn:active { transform:scale(.94); box-shadow:0 2px 10px rgba(0,0,0,.3); }
+    .btn-primary { background:linear-gradient(135deg,#f59e0b,#f97316); }
+    .btn-success { background:linear-gradient(135deg,#10b981,#059669); }
+    .btn-retry   { background:linear-gradient(135deg,#8b5cf6,#7c3aed); }
+    .btn-goal    { background:linear-gradient(135deg,#fbbf24,#f59e0b); }
+
+    .btn-ghost {
+      background:none; border:1.5px solid rgba(255,255,255,.25);
+      color:rgba(255,255,255,.45); padding:9px 24px;
+      border-radius:20px; font-size:13px; cursor:pointer;
+      font-family:inherit; transition:all .2s;
+    }
+    .btn-ghost:active { opacity:.6; }
+
+    /* ── text helpers ── */
+    .app-title { font-size:30px; font-weight:900; color:#fff; text-shadow:0 3px 12px rgba(0,0,0,.3); margin-bottom:4px; letter-spacing:1px; }
+    .app-sub   { font-size:12px; color:rgba(255,255,255,.65); margin-bottom:14px; letter-spacing:2px; }
+    .result-title { font-size:34px; font-weight:900; color:#fff; text-shadow:0 3px 16px rgba(0,0,0,.4); margin:10px 0 6px; }
+    .result-sub   { font-size:14px; color:rgba(255,255,255,.75); line-height:1.8; text-align:center; margin-bottom:10px; }
+
+    .info-card {
+      background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2);
+      border-radius:16px; padding:12px 20px;
+      font-size:13px; color:rgba(255,255,255,.75);
+      text-align:center; line-height:1.8; margin:10px 0; max-width:290px;
+    }
+
+    .big-emoji { font-size:58px; display:block; margin-bottom:4px; }
+
+    .ready-num {
+      font-size:110px; font-weight:900; color:#fff;
+      text-shadow:0 6px 30px rgba(0,0,0,.5);
+      animation: pulse .9s ease-in-out infinite;
+    }
+    .lock-icon { font-size:48px; animation:pulse 2s ease-in-out infinite; margin:10px 0; }
+    .tip-text  { font-size:12px; color:rgba(255,255,255,.4); text-align:center; margin-top:10px; }
+
+    /* ── confetti layer ── */
+    #confetti { position:fixed; top:0; right:0; bottom:0; left:0; pointer-events:none; overflow:hidden; z-index:50; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<div id="confetti"></div>
+
+<script>
+'use strict';
+
+/* ══════════════════════════════════════
+   Sound Engine v2 (Web Audio API - iOS対応)
+══════════════════════════════════════ */
+let _ctx = null;
+function ac() {
+  try {
+    if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_ctx.state === 'suspended') _ctx.resume();
+    return _ctx;
+  } catch(e) { return null; }
+}
+
+function playTone(freq, type, startAt, dur, vol, ramp) {
+  try {
+    var ctx = ac();
+    if (!ctx) return;
+    var osc  = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type            = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol || 0.28, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + (ramp || dur));
+    osc.start(startAt);
+    osc.stop(startAt + dur + 0.05);
+  } catch(e) { /* 音声エラーは無視 */ }
+}
+
+const SFX = {
+  // ボタンタップ: 短いポップ音
+  click() {
+    const t = ac().currentTime;
+    playTone(720, 'sine',   t,      0.08, 0.22, 0.07);
+    playTone(480, 'triangle', t + 0.04, 0.06, 0.10, 0.06);
+  },
+
+  // クリア: 明るい上昇ファンファーレ
+  success() {
+    const t = ac().currentTime;
+    // C5 E5 G5 C6  (ドミソド)
+    [[523,0],[659,0.13],[784,0.26],[1047,0.40]].forEach(([f,d]) => {
+      playTone(f, 'sine', t + d, 0.35, 0.28, 0.30);
+    });
+    // 背景にきらきら
+    [[1318,0.42],[1568,0.52],[2093,0.62]].forEach(([f,d]) => {
+      playTone(f, 'sine', t + d, 0.18, 0.10, 0.15);
+    });
+  },
+
+  // ゴール: 豪華なファンファーレ
+  goal() {
+    const t = ac().currentTime;
+    [[523,0],[659,0.12],[784,0.24],[1047,0.36],[1319,0.50],[1568,0.64],[2093,0.80]].forEach(([f,d]) => {
+      playTone(f, 'sine', t + d, 0.40, 0.30, 0.38);
+    });
+  },
+
+  // 失敗/中断: 下降する悲しい音
+  fail() {
+    const t = ac().currentTime;
+    // C5 → A4 → F4  (ドーラーファ)
+    [[523,0,0.40],[440,0.22,0.40],[349,0.46,0.55]].forEach(([f,d,r]) => {
+      playTone(f, 'sine', t + d, 0.50, 0.26, r);
+    });
+    // 最後にちょっと震える音
+    playTone(220, 'sawtooth', t + 0.90, 0.25, 0.08, 0.25);
+  },
+
+  // カウントダウン: ティック
+  tick() {
+    const t = ac().currentTime;
+    playTone(880, 'square', t, 0.07, 0.12, 0.06);
+  },
+
+  // スタート: ドン！
+  start() {
+    const t = ac().currentTime;
+    playTone(200, 'sine',     t,      0.15, 0.30, 0.14);
+    playTone(400, 'triangle', t,      0.12, 0.20, 0.12);
+    playTone(800, 'sine',     t+0.05, 0.10, 0.15, 0.10);
+  },
+};
+
+/* ══════════════════════════════════════
+   Constants
+══════════════════════════════════════ */
+const TIMER_SEC    = 40 * 60;
+const TOTAL_ROUNDS = 3;
+const KEY          = 'nyaGame_v4';
+
+/* ══════════════════════════════════════
+   State
+══════════════════════════════════════ */
+let screen   = 'home';
+let rounds   = 0;
+let timeLeft = TIMER_SEC;
+let readyCnt = 3;
+
+let startTime   = null;
+let timerActive = false;
+let hasEnded    = false;
+let tickIv      = null;
+let readyIv     = null;
+
+/* ══════════════════════════════════════
+   Save/Load (file://でも安全に動く)
+══════════════════════════════════════ */
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+  catch(e) { return {}; }
+}
+function save(obj) {
+  try { localStorage.setItem(KEY, JSON.stringify(obj)); }
+  catch(e) { /* file://では無視 */ }
+}
+
+/* ══════════════════════════════════════
+   Utils
+══════════════════════════════════════ */
+function fmt(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
+
+/* ══════════════════════════════════════
+   Cat SVG
+══════════════════════════════════════ */
+function catSVG(mood, size) {
+  const w = size, h = Math.round(size * 1.25);
+  const happy  = mood === 'happy' || mood === 'excited' || mood === 'celebrate';
+  const sad    = mood === 'sad';
+
+  const arms = happy
+    ? `<path d="M36 102 Q16 84 22 72" fill="none" stroke="#f5f5f5" stroke-width="13" stroke-linecap="round"/>
+       <path d="M36 102 Q16 84 22 72" fill="none" stroke="#efefef" stroke-width="9" stroke-linecap="round"/>
+       <path d="M84 102 Q104 84 98 72" fill="none" stroke="#f5f5f5" stroke-width="13" stroke-linecap="round"/>
+       <path d="M84 102 Q104 84 98 72" fill="none" stroke="#efefef" stroke-width="9" stroke-linecap="round"/>`
+    : sad
+    ? `<path d="M36 105 Q20 118 26 130" fill="none" stroke="#f5f5f5" stroke-width="13" stroke-linecap="round"/>
+       <path d="M36 105 Q20 118 26 130" fill="none" stroke="#efefef" stroke-width="9" stroke-linecap="round"/>
+       <path d="M84 105 Q100 118 94 130" fill="none" stroke="#f5f5f5" stroke-width="13" stroke-linecap="round"/>
+       <path d="M84 105 Q100 118 94 130" fill="none" stroke="#efefef" stroke-width="9" stroke-linecap="round"/>`
+    : `<path d="M36 103 Q22 112 28 122" fill="none" stroke="#f5f5f5" stroke-width="13" stroke-linecap="round"/>
+       <path d="M36 103 Q22 112 28 122" fill="none" stroke="#efefef" stroke-width="9" stroke-linecap="round"/>
+       <path d="M84 103 Q98 112 92 122" fill="none" stroke="#f5f5f5" stroke-width="13" stroke-linecap="round"/>
+       <path d="M84 103 Q98 112 92 122" fill="none" stroke="#efefef" stroke-width="9" stroke-linecap="round"/>`;
+
+  const eyes = sad
+    ? `<path d="M44 56 Q50 52 56 56" fill="none" stroke="#444" stroke-width="2.5" stroke-linecap="round"/>
+       <path d="M64 56 Q70 52 76 56" fill="none" stroke="#444" stroke-width="2.5" stroke-linecap="round"/>
+       <ellipse cx="45" cy="62" rx="2.5" ry="4" fill="#93c5fd" opacity=".7"/>`
+    : happy
+    ? `<path d="M44 58 Q50 52 56 58" fill="none" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+       <path d="M64 58 Q70 52 76 58" fill="none" stroke="#444" stroke-width="3" stroke-linecap="round"/>`
+    : `<circle cx="49" cy="55" r="5.5" fill="#333"/>
+       <circle cx="71" cy="55" r="5.5" fill="#333"/>
+       <circle cx="51" cy="53" r="1.8" fill="white"/>
+       <circle cx="73" cy="53" r="1.8" fill="white"/>`;
+
+  const mouth = sad
+    ? `<path d="M54 72 Q60 69 66 72" fill="none" stroke="#aaa" stroke-width="1.5" stroke-linecap="round"/>`
+    : `<path d="M54 72 Q60 77 66 72" fill="none" stroke="#aaa" stroke-width="1.5" stroke-linecap="round"/>`;
+
+  const blush = happy
+    ? `<ellipse cx="38" cy="65" rx="8" ry="5" fill="#ffb6c1" opacity=".4"/>
+       <ellipse cx="82" cy="65" rx="8" ry="5" fill="#ffb6c1" opacity=".4"/>`
+    : '';
+
+  const anim = {
+    normal: 'float', happy: 'bounce', excited: 'excited',
+    sad: 'sad', waiting: 'float', celebrate: 'excited',
+  }[mood] || 'float';
+
+  return `
+  <svg class="cat ${anim}" viewBox="0 0 120 150" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="60" cy="147" rx="28" ry="5" fill="rgba(0,0,0,.1)"/>
+    <path d="M68 128 Q105 110 98 138 Q92 155 76 148" fill="none" stroke="#e8e8e8" stroke-width="9" stroke-linecap="round"/>
+    <path d="M68 128 Q105 110 98 138 Q92 155 76 148" fill="none" stroke="#f5f5f5" stroke-width="6" stroke-linecap="round"/>
+    <ellipse cx="60" cy="108" rx="27" ry="34" fill="#f5f5f5"/>
+    <ellipse cx="60" cy="106" rx="14" ry="18" fill="#fff0f3" opacity=".5"/>
+    <rect x="38" y="133" width="14" height="22" rx="7" fill="#f5f5f5"/>
+    <ellipse cx="44" cy="156" rx="9" ry="5" fill="#f5f5f5"/>
+    <rect x="68" y="133" width="14" height="22" rx="7" fill="#f5f5f5"/>
+    <ellipse cx="74" cy="156" rx="9" ry="5" fill="#f5f5f5"/>
+    ${arms}
+    <ellipse cx="60" cy="56" rx="31" ry="29" fill="#f5f5f5"/>
+    <polygon points="32,40 24,16 48,30" fill="#f5f5f5"/>
+    <polygon points="34,38 28,20 46,30" fill="#ffb6c1"/>
+    <polygon points="88,40 96,16 72,30" fill="#f5f5f5"/>
+    <polygon points="86,38 92,20 74,30" fill="#ffb6c1"/>
+    ${eyes}
+    <ellipse cx="60" cy="65" rx="3.5" ry="2.5" fill="#ffb6c1"/>
+    ${mouth}
+    <line x1="22" y1="62" x2="50" y2="65" stroke="#ccc" stroke-width="1.2"/>
+    <line x1="22" y1="67" x2="50" y2="67" stroke="#ccc" stroke-width="1.2"/>
+    <line x1="22" y1="72" x2="50" y2="69" stroke="#ccc" stroke-width="1.2"/>
+    <line x1="98" y1="62" x2="70" y2="65" stroke="#ccc" stroke-width="1.2"/>
+    <line x1="98" y1="67" x2="70" y2="67" stroke="#ccc" stroke-width="1.2"/>
+    <line x1="98" y1="72" x2="70" y2="69" stroke="#ccc" stroke-width="1.2"/>
+    ${blush}
+  </svg>`;
+}
+
+/* ══════════════════════════════════════
+   Rounds HTML
+══════════════════════════════════════ */
+function roundsHTML(done) {
+  let h = '<div class="rounds">';
+  for (let i = 0; i < TOTAL_ROUNDS; i++) {
+    h += `<div class="dot ${i < done ? 'done' : ''}">${i < done ? '★' : ''}</div>`;
+  }
+  return h + '</div>';
+}
+
+/* ══════════════════════════════════════
+   Confetti
+══════════════════════════════════════ */
+const EMOJIS = ['⭐','🌟','✨','🎉','🎊','💫','🌸','🍀'];
+let confettiTimers = [];
+
+function startConfetti() {
+  stopConfetti();
+  const layer = document.getElementById('confetti');
+  layer.innerHTML = '';
+  for (let i = 0; i < 22; i++) {
+    const el = document.createElement('span');
+    const dur  = (2.5 + Math.random() * 2).toFixed(2);
+    const del  = (Math.random() * 3).toFixed(2);
+    const size = Math.round(14 + Math.random() * 20);
+    el.textContent = EMOJIS[i % EMOJIS.length];
+    el.style.cssText = `position:absolute;top:-60px;left:${(Math.random()*100).toFixed(1)}%;font-size:${size}px;animation:starFall ${dur}s ${del}s linear infinite;`;
+    layer.appendChild(el);
+  }
+}
+function stopConfetti() {
+  const layer = document.getElementById('confetti');
+  if (layer) layer.innerHTML = '';
+  confettiTimers.forEach(clearTimeout);
+  confettiTimers = [];
+}
+
+/* ══════════════════════════════════════
+   Screens
+══════════════════════════════════════ */
+function renderHome() {
+  stopConfetti();
+  const msg = rounds === 0
+    ? 'はじめましてニャ！🐾\nスマホを置いて勉強するニャ！\n40分チャレンジだニャ🎯'
+    : rounds === 1
+    ? 'すごいニャ！1回クリアしたニャ！✨\nあと2回でゴールだニャ！\nがんばるニャ！💪'
+    : 'あと1回でゴールだニャ！！\nもうすぐだニャ〜🔥\nぜったいできるニャ！';
+
+  return `
+  <div class="screen bg-home">
+    <div class="app-title">📚 ニャまじめ！</div>
+    <div class="app-sub">スマホを置いて集中チャレンジ</div>
+    ${roundsHTML(rounds)}
+    <div class="bubble">${msg}</div>
+    ${catSVG('normal', 130)}
+    <div class="info-card">40分スマホを触らずに置いておくと<br>クリア！✅　3回クリアでゴール🏆</div>
+    <button class="btn btn-primary" data-action="start" style="margin-top:18px">🚀 はじめるニャ！</button>
+    ${rounds > 0 ? '<button class="btn-ghost" data-action="reset" style="margin-top:14px">リセット</button>' : ''}
+  </div>`;
+}
+
+function renderReady() {
+  return `
+  <div class="screen bg-ready">
+    <div class="bubble">スマホを置く準備をするニャ！\nカウントダウン後にスタートだニャ！⏰</div>
+    ${catSVG('excited', 130)}
+    <div class="ready-num" id="cntNum">${readyCnt}</div>
+    <p style="color:rgba(255,255,255,.6);font-size:14px;margin-top:16px">準備してニャ〜！</p>
+  </div>`;
+}
+
+function renderTimer() {
+  const pct = Math.max(0, Math.min(100, ((TIMER_SEC - timeLeft) / TIMER_SEC) * 100));
+  return `
+  <div class="screen bg-timer">
+    <div class="bubble">スマホを裏返して\n置いといてニャ！📵\n触ったら失敗だニャ！😤</div>
+    ${catSVG('waiting', 120)}
+    <div class="lock-icon">🔒</div>
+    <div style="text-align:center;margin-top:8px">
+      <div class="timer-num" id="timerNum">${fmt(timeLeft)}</div>
+      <div class="timer-label">残り時間</div>
+    </div>
+    <div class="bar-wrap"><div class="bar-fill" id="barFill" style="width:${pct}%"></div></div>
+    <p class="tip-text">※ 画面ロック中もタイマーは進むニャ</p>
+    <button class="btn-ghost" data-action="giveup" style="margin-top:22px">あきらめる</button>
+  </div>`;
+}
+
+function renderSuccess() {
+  startConfetti();
+  return `
+  <div class="screen bg-success">
+    <span class="big-emoji">🎉</span>
+    <div class="result-title">クリア！</div>
+    ${roundsHTML(rounds)}
+    <div class="bubble">すごいニャ！${rounds}回クリアしたニャ！🌟\nあと${TOTAL_ROUNDS - rounds}回でゴールだニャ！\nもう一息だニャ💪</div>
+    ${catSVG('happy', 130)}
+    <button class="btn btn-success" data-action="next" style="margin-top:16px">つぎへ進むニャ！</button>
+  </div>`;
+}
+
+function renderFail() {
+  stopConfetti();
+  return `
+  <div class="screen bg-fail">
+    <span class="big-emoji" style="animation:none">😿</span>
+    <div class="result-title" style="font-size:28px">あっ…失敗ニャ</div>
+    <div class="bubble">スマホを触っちゃったニャ…😢\n次はきっとできるニャ！\nあきらめないニャ！！💪</div>
+    ${catSVG('sad', 130)}
+    <div class="result-sub">現在の記録: ${rounds}/${TOTAL_ROUNDS} クリア</div>
+    <button class="btn btn-retry" data-action="next" style="margin-top:10px">もう一度チャレンジニャ！</button>
+  </div>`;
+}
+
+function renderGoal() {
+  startConfetti();
+  return `
+  <div class="screen bg-goal">
+    <span style="font-size:64px;animation:bounce .5s ease-in-out infinite;display:block;margin-bottom:4px">🏆</span>
+    <div class="result-title" style="color:#fef3c7;font-size:34px;text-shadow:0 0 24px rgba(253,230,138,.6)">ゴール達成！</div>
+    <p style="color:rgba(255,255,255,.85);font-size:15px;margin-bottom:10px">3回全部クリアしたニャ！！！</p>
+    ${roundsHTML(3)}
+    <div class="bubble">やったニャ！！🎊🎊🎊\n君は本当にすごいニャ！\n120分も集中できたニャ！\n勉強の天才だニャ！⭐️</div>
+    ${catSVG('celebrate', 140)}
+    <button class="btn btn-goal" data-action="reset" style="margin-top:14px">もう一度挑戦するニャ！</button>
+  </div>`;
+}
+
+/* ══════════════════════════════════════
+   Render dispatcher
+══════════════════════════════════════ */
+function render() {
+  const root = document.getElementById('root');
+  const html = {
+    home:    renderHome,
+    ready:   renderReady,
+    timer:   renderTimer,
+    success: renderSuccess,
+    fail:    renderFail,
+    goal:    renderGoal,
+  }[screen];
+  root.innerHTML = html ? html() : '';
+}
+
+/* ══════════════════════════════════════
+   Timer logic
+══════════════════════════════════════ */
+function startTimer() {
+  clearInterval(tickIv);
+  startTime   = Date.now();
+  timerActive = true;
+  hasEnded    = false;
+  timeLeft    = TIMER_SEC;
+  save({ rounds, timerStart: startTime, timerActive: true });
+  screen = 'timer';
+  render();
+
+  tickIv = setInterval(() => {
+    const rem = Math.ceil((startTime + TIMER_SEC * 1000 - Date.now()) / 1000);
+    if (rem <= 0) {
+      clearInterval(tickIv);
+      if (!hasEnded) { hasEnded = true; doSuccess(); }
+    } else {
+      timeLeft = rem;
+      // Update only the changing parts
+      const num = document.getElementById('timerNum');
+      const bar = document.getElementById('barFill');
+      if (num) num.textContent = fmt(timeLeft);
+      if (bar) bar.style.width = `${((TIMER_SEC - timeLeft) / TIMER_SEC * 100).toFixed(2)}%`;
+    }
+  }, 500);
+}
+
+function doSuccess() {
+  clearInterval(tickIv);
+  timerActive = false;
+  rounds += 1;
+  save({ rounds, timerActive: false });
+  screen = rounds >= TOTAL_ROUNDS ? 'goal' : 'success';
+  screen === 'goal' ? SFX.goal() : SFX.success();
+  render();
+}
+
+function doFail() {
+  if (hasEnded) return;
+  hasEnded = true;
+  clearInterval(tickIv);
+  timerActive = false;
+  save({ rounds, timerActive: false });
+  SFX.fail();
+  screen = 'fail';
+  render();
+}
+
+function resetGame() {
+  clearInterval(tickIv);
+  clearInterval(readyIv);
+  timerActive = false;
+  hasEnded    = false;
+  rounds      = 0;
+  timeLeft    = TIMER_SEC;
+  save({ rounds: 0, timerActive: false });
+  screen = 'home';
+  render();
+}
+
+/* ══════════════════════════════════════
+   Ready countdown
+══════════════════════════════════════ */
+function startReady() {
+  clearInterval(readyIv);
+  screen   = 'ready';
+  readyCnt = 3;
+  SFX.tick();
+  render();
+
+  readyIv = setInterval(() => {
+    readyCnt -= 1;
+    if (readyCnt <= 0) {
+      clearInterval(readyIv);
+      SFX.start();
+      startTimer();
+    } else {
+      SFX.tick();
+      const el = document.getElementById('cntNum');
+      if (el) el.textContent = readyCnt;
+    }
+  }, 900);
+}
+
+/* ══════════════════════════════════════
+   Visibility (phone picked up)
+══════════════════════════════════════ */
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && timerActive && !hasEnded && startTime) {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    if (elapsed >= TIMER_SEC) {
+      hasEnded = true;
+      doSuccess();
+    } else {
+      doFail();
+    }
+  }
+});
+
+/* ══════════════════════════════════════
+   Event delegation
+══════════════════════════════════════ */
+document.addEventListener('click', e => {
+  const el     = e.target.closest('[data-action]');
+  if (!el) return;
+  const action = el.dataset.action;
+  SFX.click();
+  if (action === 'start')  startReady();
+  if (action === 'giveup') doFail();
+  if (action === 'next')   { screen = 'home'; render(); }
+  if (action === 'reset')  resetGame();
+});
+
+/* ══════════════════════════════════════
+   Init
+══════════════════════════════════════ */
+(function init() {
+  try {
+    var s = load();
+    rounds = s.rounds || 0;
+
+    if (s.timerActive && s.timerStart) {
+      var elapsed = Math.floor((Date.now() - s.timerStart) / 1000);
+      save({ rounds: rounds, timerActive: false });
+      if (elapsed >= TIMER_SEC) {
+        rounds += 1;
+        save({ rounds: rounds, timerActive: false });
+        screen = rounds >= TOTAL_ROUNDS ? 'goal' : 'success';
+      } else {
+        screen = 'fail';
+      }
+    }
+
+    render();
+  } catch(e) {
+    // 万が一エラーでもホーム画面を表示
+    document.getElementById('root').innerHTML =
+      '<div class="screen bg-home"><div class="app-title">📚 ニャまじめ！</div>' +
+      '<p style="color:white;margin:20px">読み込み中...ニャ🐱<br><small>' + e + '</small></p></div>';
+  }
+})();
+
+// ── Service Worker 登録（オフライン対応） ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .catch(function() { /* SW非対応環境では無視 */ });
+  });
+}
+</script>
+</body>
+</html>
